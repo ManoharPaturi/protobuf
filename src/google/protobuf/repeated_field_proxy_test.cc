@@ -2519,6 +2519,75 @@ TYPED_TEST(RepeatedFieldProxyTest, StableCSortMessage) {
   EXPECT_EQ(&field->Get(3), msg2);
 }
 
+TYPED_TEST(RepeatedNumericFieldProxyTest, RepeatedFieldBackInserter) {
+  auto field = this->MakeRepeatedFieldContainer();
+  field->Add(1);
+  field->Add(2);
+
+  auto proxy = field.MakeProxy();
+
+  auto values = {3, 4, 5};
+  std::copy(values.begin(), values.end(),
+            google::protobuf::RepeatedFieldBackInserter(proxy));
+
+  EXPECT_THAT(proxy, ElementsAre(1, 2, 3, 4, 5));
+  EXPECT_THAT(*field, ElementsAre(1, 2, 3, 4, 5));
+}
+
+TYPED_TEST(RepeatedStringFieldProxyTest, RepeatedFieldBackInserter) {
+  using ElementType = typename TypeParam::ElementType;
+
+  auto field = this->MakeRepeatedFieldContainer();
+  this->Add(field, "1");
+  this->Add(field, "2");
+
+  auto proxy = field.MakeProxy();
+
+  if constexpr (std::is_same_v<ElementType, absl::Cord>) {
+    auto values = {absl::Cord("3"), absl::Cord("4"), absl::Cord("5")};
+    std::copy(values.begin(), values.end(),
+              google::protobuf::RepeatedFieldBackInserter(proxy));
+  } else {
+    auto values = {"3", "4", "5"};
+    std::copy(values.begin(), values.end(),
+              google::protobuf::RepeatedFieldBackInserter(proxy));
+  }
+
+  EXPECT_THAT(proxy, ElementsAre(StringEq("1"), StringEq("2"), StringEq("3"),
+                                 StringEq("4"), StringEq("5")));
+  EXPECT_THAT(*field, ElementsAre(StringEq("1"), StringEq("2"), StringEq("3"),
+                                  StringEq("4"), StringEq("5")));
+}
+
+TYPED_TEST(RepeatedFieldProxyTest, RepeatedFieldBackInserterMessages) {
+  auto field = this->template MakeRepeatedFieldContainer<
+      RepeatedFieldProxyTestSimpleMessage>();
+  auto proxy = field.MakeProxy();
+  proxy.emplace_back().set_value(1);
+  proxy.emplace_back().set_value(2);
+
+  RepeatedFieldProxyTestSimpleMessage msg3;
+  msg3.set_value(3);
+  RepeatedFieldProxyTestSimpleMessage msg4;
+  msg4.set_value(4);
+  RepeatedFieldProxyTestSimpleMessage msg5;
+  msg5.set_value(5);
+  auto values = {msg3, msg4, msg5};
+  std::copy(values.begin(), values.end(),
+            google::protobuf::RepeatedFieldBackInserter(proxy));
+
+  EXPECT_THAT(proxy, ElementsAre(EqualsProto(R"pb(value: 1)pb"),
+                                 EqualsProto(R"pb(value: 2)pb"),
+                                 EqualsProto(R"pb(value: 3)pb"),
+                                 EqualsProto(R"pb(value: 4)pb"),
+                                 EqualsProto(R"pb(value: 5)pb")));
+  EXPECT_THAT(*field, ElementsAre(EqualsProto(R"pb(value: 1)pb"),
+                                  EqualsProto(R"pb(value: 2)pb"),
+                                  EqualsProto(R"pb(value: 3)pb"),
+                                  EqualsProto(R"pb(value: 4)pb"),
+                                  EqualsProto(R"pb(value: 5)pb")));
+}
+
 TYPED_TEST(RepeatedNumericFieldProxyTest,
            RepeatedFieldOrProxyImplicitConversion) {
   using ElementType = typename TypeParam::ElementType;

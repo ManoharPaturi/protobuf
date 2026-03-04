@@ -9,6 +9,10 @@
 
 namespace google {
 namespace protobuf {
+
+template <typename T>
+class RepeatedFieldProxy;
+
 namespace internal {
 
 template <typename ElementType, bool kOrProxy>
@@ -49,6 +53,11 @@ class RepeatedFieldProxyIteratorImpl {
  private:
   static constexpr bool kReturnByValue = !std::is_reference_v<reference>;
 
+  struct ArrowProxy {
+    value_type view;
+    const value_type* operator->() const { return &view; }
+  };
+
  public:
   // When returning elements by value, this iterator does not satisfy the
   // pre-C++20 requirement that "If i and j are both dereferenceable, then i ==
@@ -63,13 +72,6 @@ class RepeatedFieldProxyIteratorImpl {
   // value-returning and reference-returning iterators.
   using iterator_concept = std::random_access_iterator_tag;
 
- private:
-  struct ArrowProxy {
-    value_type view;
-    const value_type* operator->() const { return &view; }
-  };
-
- public:
   explicit RepeatedFieldProxyIteratorImpl(InternalIterator it) : it_(it) {}
 
   template <typename E = ElementType,
@@ -184,6 +186,42 @@ class RepeatedFieldProxyIteratorInternalPrivateAccessHelper {
           it) {
     return it.it_;
   }
+};
+
+template <typename ElementType>
+class RepeatedFieldProxyBackInsertIteratorImpl {
+  using iterator = RepeatedFieldProxyBackInsertIteratorImpl;
+
+  using Traits = RepeatedFieldTraits<std::remove_const_t<ElementType>>;
+  using InternalIterator = decltype(RepeatedFieldBackInserter(
+      std::declval<typename Traits::type*>()));
+
+ public:
+  using iterator_category = std::output_iterator_tag;
+  using value_type = std::remove_const_t<ElementType>;
+  using pointer = void;
+  using reference = void;
+  using difference_type = std::ptrdiff_t;
+
+  explicit RepeatedFieldProxyBackInsertIteratorImpl(InternalIterator it)
+      : it_(it) {}
+
+  template <typename T>
+  RepeatedFieldProxyBackInsertIteratorImpl& operator=(T&& value) {
+    static_assert(
+        std::is_same_v<decltype(std::declval<RepeatedFieldProxy<ElementType>>()
+                                    .push_back(std::forward<T>(value))),
+                       void>);
+    it_ = std::forward<T>(value);
+    return *this;
+  }
+
+  RepeatedFieldProxyBackInsertIteratorImpl& operator*() { return *this; }
+  RepeatedFieldProxyBackInsertIteratorImpl& operator++() { return *this; }
+  RepeatedFieldProxyBackInsertIteratorImpl& operator++(int) { return *this; }
+
+ private:
+  InternalIterator it_;
 };
 
 }  // namespace internal

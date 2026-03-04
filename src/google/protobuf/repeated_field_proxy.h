@@ -28,9 +28,16 @@ template <typename ElementType>
 class RepeatedFieldProxy;
 
 namespace internal {
-
 template <typename ElementType>
 class RepeatedFieldOrProxy;
+}
+
+template <typename T>
+auto RepeatedFieldBackInserter(RepeatedFieldProxy<T> field);
+template <typename T>
+auto RepeatedFieldBackInserter(internal::RepeatedFieldOrProxy<T> field);
+
+namespace internal {
 
 template <typename ElementType, bool kOrProxy>
 class MutableRepeatedFieldProxyImpl;
@@ -793,7 +800,6 @@ class RepeatedFieldOrProxy final
 
   // Inherit constructors.
   using Base::Base;
-
   using Base::field;
 
  public:
@@ -874,6 +880,9 @@ class RepeatedFieldOrProxy final
   friend RepeatedFieldOrProxy<const ElementType>;
   friend internal::RepeatedFieldProxyInternalPrivateAccessHelper<
       ElementType, /*kOrProxy=*/true>;
+
+  template <typename T>
+  friend auto google::protobuf::RepeatedFieldBackInserter(RepeatedFieldOrProxy<T> field);
 };
 
 // A const proxy for a repeated field of type `ElementType` in a Protobuf
@@ -1043,6 +1052,26 @@ void c_stable_sort(internal::RepeatedFieldOrProxy<T> cont, Compare cmp) {
 template <int&..., typename T>
 void c_stable_sort(internal::RepeatedFieldOrProxy<T> cont) {
   google::protobuf::stable_sort(cont.begin(), cont.end());
+}
+
+// Provides a back insert iterator for RepeatedFieldOrProxy instances,
+// similar to std::back_inserter().
+template <typename T>
+auto RepeatedFieldBackInserter(RepeatedFieldProxy<T> field) {
+  auto& inner_field =
+      internal::RepeatedFieldProxyInternalPrivateAccessHelper<T>::field(field);
+  return internal::RepeatedFieldProxyBackInsertIteratorImpl<T>(
+      RepeatedFieldBackInserter(&inner_field));
+}
+
+// Provides a back insert iterator for RepeatedFieldOrProxy instances,
+// similar to std::back_inserter().
+template <typename T>
+auto RepeatedFieldBackInserter(internal::RepeatedFieldOrProxy<T> field) {
+  auto& inner_field = internal::RepeatedFieldProxyInternalPrivateAccessHelper<
+      T, /*kOrProxy=*/true>::field(field);
+  return internal::RepeatedFieldProxyBackInsertIteratorImpl<T>(
+      RepeatedFieldBackInserter(&inner_field));
 }
 
 }  // namespace protobuf
